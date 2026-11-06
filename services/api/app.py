@@ -13,7 +13,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         if self.path == '/health':
             body = {'status': 'healthy', 'service': 'clearops-api', 'version': VERSION}
         elif self.path == '/data':
-            body = {'records': 42, 'source': 'clearops-api', 'pod': os.environ.get('HOSTNAME', 'unknown')}
+            body = {'records': int(os.environ.get('RECORD_COUNT', '0')), 'source': 'clearops-api', 'pod': os.environ.get('HOSTNAME', 'unknown')}
         else:
             status = 404  # was 200 in Module 10; an unknown path should say "not found"
             body = {'error': 'not found'}
