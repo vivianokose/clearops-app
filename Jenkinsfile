@@ -47,8 +47,11 @@ pipeline {
               export GIT_SSH_COMMAND="ssh -i $KEY -o UserKnownHostsFile=$WORKSPACE/.known_hosts -o StrictHostKeyChecking=yes"
               rm -rf gitops && git clone --quiet --depth 1 "$GITOPS_REPO" gitops
 
-              CURRENT=$(grep -A1 "name: $REGISTRY/clearops-api" "gitops/$OVERLAY/kustomization.yaml" \
-                        | grep newTag | sed -E 's/.*newTag: *"?([0-9.]+)"?.*/\\1/')
+              # Render the overlay and read the API image tag from the result, so the
+              # layout of kustomization.yaml (newTag, newName, field order) does not matter.
+              CURRENT=$(kustomize build "gitops/$OVERLAY" | grep -o "image: $REGISTRY/clearops-api:[0-9.]*" | head -1 | cut -d: -f3)
+              echo "$CURRENT" | grep -Eq '^[0-9]+[.][0-9]+[.][0-9]+$' \\
+                || { echo "Could not read the deployed version (got '$CURRENT'). Stopping." >&2; exit 1; }
               MSG=$(git log -1 --pretty=%s)
               IFS=. read -r MA MI PA <<EOV
 $CURRENT
@@ -137,8 +140,9 @@ EOV
             git pull --quiet --rebase
 
             cd "$OVERLAY"
-            kustomize edit set image "$REGISTRY/clearops-api=$REGISTRY/clearops-api:$NEW_VERSION"
-            kustomize edit set image "$REGISTRY/clearops-frontend=$REGISTRY/clearops-frontend:$NEW_VERSION"
+            # "name:tag" form changes only newTag (the "a=b:tag" form also adds a newName line).
+            kustomize edit set image "$REGISTRY/clearops-api:$NEW_VERSION"
+            kustomize edit set image "$REGISTRY/clearops-frontend:$NEW_VERSION"
             cd - >/dev/null
 
             git config user.name  "jenkins-local"
