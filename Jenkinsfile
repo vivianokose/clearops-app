@@ -62,6 +62,16 @@ EOV
                 fix*)                       NEXT="$MA.$MI.$((PA+1))" ;;
                 *)                          NEXT="" ;;
               esac
+
+              # Never reuse a published tag. After a rollback, git says 1.1.0 again,
+              # but 1.1.1 already exists on Docker Hub (and in the cluster's image cache).
+              # Reusing it would ship the old bad image under a "new" release.
+              if [ -n "$NEXT" ]; then
+                while docker manifest inspect "$REGISTRY/clearops-api:$NEXT" >/dev/null 2>&1; do
+                  echo "Tag $NEXT is already published. Skipping to the next patch version." >&2
+                  NEXT="${NEXT%.*}.$(( ${NEXT##*.} + 1 ))"
+                done
+              fi
               echo "$CURRENT|$NEXT|$MSG"
             ''').trim()
 
